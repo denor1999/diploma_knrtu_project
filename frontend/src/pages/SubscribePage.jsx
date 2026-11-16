@@ -62,7 +62,8 @@ export default function SubscribePage() {
       active: true,
       email: user.email,
     })
-    navigate('/routes')
+      .then(() => navigate('/routes'))
+      .catch((err) => setError(err.message))
   }
 
   const moscow = places.filter((place) => place.group === 'moscow')
