@@ -1,7 +1,6 @@
 HELP.md
 target/
 data/
-gradle/
 .gradle/
 settings.gradle
 build/
@@ -37,6 +36,5 @@ build/
 .vscode/
 
 application.properties
+application-test.properties
 testdata.properties
-gradlew
-gradlew.bat
