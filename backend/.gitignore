@@ -37,5 +37,6 @@ build/
 .vscode/
 
 application.properties
+testdata.properties
 gradlew
 gradlew.bat
