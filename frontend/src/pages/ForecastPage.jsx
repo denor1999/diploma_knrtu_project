@@ -1,5 +1,6 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { quoteForecast } from '../api'
 import { useAuth } from '../auth'
 import PriceChart from '../components/PriceChart'
 import { IconArrowLeft, IconBell, IconCheck } from '../components/Icons'
@@ -19,11 +20,14 @@ export default function ForecastPage() {
   const from = params.get('from') || 'SVO'
   const to = params.get('to') || 'AER'
   const date = params.get('date') || '2026-11-24'
-  const forecast = useMemo(() => buildForecast(from, to, date), [from, to, date])
+  const [forecast, setForecast] = useState(() => buildForecast(from, to, date))
 
   useEffect(() => {
     document.title = `${routeTitle(from, to)} · вовремя`
-  }, [from, to])
+    quoteForecast(from, to, date)
+      .then(setForecast)
+      .catch(() => setForecast(buildForecast(from, to, date)))
+  }, [from, to, date])
 
   const delta = forecast.expected - forecast.current
   const subscribeUrl = `/routes/new?from=${from}&to=${to}&date=${date}&target=${Math.max(forecast.current - 500, 1000)}`

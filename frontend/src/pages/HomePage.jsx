@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { CalendarField, SelectField } from '../components/Fields'
 import { IconArrowRight, IconBell, IconCheck, IconInfo, IconSliders, IconSwap, IconTrend } from '../components/Icons'
-import { buildForecast, destinationLabel, formatPrice, getPlace, originLabel, places, popularRoutes } from '../data'
+import { destinationLabel, formatPrice, getPlace, originLabel, places, popularRoutes } from '../data'
 
 export default function HomePage() {
   const navigate = useNavigate()
@@ -42,20 +42,16 @@ export default function HomePage() {
   }
 
   function remember(nextFrom, nextTo, nextDate) {
-    const quote = buildForecast(nextFrom, nextTo, nextDate)
     recordSearch({
       from: nextFrom,
       to: nextTo,
       date: nextDate,
-      requestedLabel: 'Только что',
-      price: quote.current,
-      rec: quote.rec,
-    })
+    }).catch(() => {})
   }
 
-  function search(event) {
+  async function search(event) {
     event.preventDefault()
-    remember(from, to, date)
+    await remember(from, to, date)
     navigate(`/forecast?${new URLSearchParams({ from, to, date }).toString()}`)
   }
 

@@ -1,115 +1,145 @@
-import { createContext, useContext, useMemo, useState } from 'react'
-import { DEMO_USER, seedHistory, seedSubscriptions } from './data'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createForecast,
+  createSubscription,
+  deleteSubscription,
+  listForecasts,
+  listSubscriptions,
+  loginRequest,
+  patchSubscription,
+  registerRequest,
+} from './api'
 
 const AuthContext = createContext(null)
-const USERS_KEY = 'vovremya-users'
 const SESSION_KEY = 'vovremya-session'
-const DATA_KEY = 'vovremya-data'
 
-function readJson(key, fallback) {
+function readJson(storage, key, fallback) {
   try {
-    const raw = localStorage.getItem(key)
+    const raw = storage.getItem(key)
     return raw ? JSON.parse(raw) : fallback
   } catch {
     return fallback
   }
 }
 
-function seedUsers() {
-  const users = readJson(USERS_KEY, [])
-  if (!users.some((user) => user.email === DEMO_USER.email)) {
-    users.push(DEMO_USER)
-    localStorage.setItem(USERS_KEY, JSON.stringify(users))
-  }
-  return users
+function readSession() {
+  const fromTab = readJson(sessionStorage, SESSION_KEY, null)
+  if (fromTab?.email) return fromTab
+  const stored = readJson(localStorage, SESSION_KEY, null)
+  return stored?.email ? stored : null
 }
 
-function seedData() {
-  const stored = readJson(DATA_KEY, null)
-  if (stored?.subscriptions && stored?.history) return stored
-  const data = {
-    subscriptions: seedSubscriptions,
-    history: seedHistory,
+function saveSession(user, remember) {
+  const raw = JSON.stringify(user)
+  if (remember) {
+    localStorage.setItem(SESSION_KEY, raw)
+    sessionStorage.removeItem(SESSION_KEY)
+  } else {
+    sessionStorage.setItem(SESSION_KEY, raw)
+    localStorage.removeItem(SESSION_KEY)
   }
-  localStorage.setItem(DATA_KEY, JSON.stringify(data))
-  return data
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY)
+  sessionStorage.removeItem(SESSION_KEY)
 }
 
 export function AuthProvider({ children }) {
-  const [users, setUsers] = useState(seedUsers)
-  const [sessionEmail, setSessionEmail] = useState(() => localStorage.getItem(SESSION_KEY))
-  const [data, setData] = useState(seedData)
+  const [user, setUser] = useState(readSession)
+  const [subscriptions, setSubscriptions] = useState([])
+  const [history, setHistory] = useState([])
 
-  const user = users.find((item) => item.email === sessionEmail) ?? null
-
-  function persistUsers(next) {
-    setUsers(next)
-    localStorage.setItem(USERS_KEY, JSON.stringify(next))
+  async function refreshCabinet(nextUser = user) {
+    if (!nextUser?.id) {
+      setSubscriptions([])
+      setHistory([])
+      return
+    }
+    const [nextSubscriptions, nextHistory] = await Promise.all([
+      listSubscriptions(nextUser.id),
+      listForecasts(nextUser.id),
+    ])
+    setSubscriptions(nextSubscriptions)
+    setHistory(nextHistory)
   }
 
-  function persistData(next) {
-    setData(next)
-    localStorage.setItem(DATA_KEY, JSON.stringify(next))
-  }
+  useEffect(() => {
+    refreshCabinet().catch(() => {
+      setSubscriptions([])
+      setHistory([])
+    })
+  }, [user?.id])
 
   const api = useMemo(() => {
-    function login(email, password) {
-      const found = users.find((item) => item.email.toLowerCase() === email.trim().toLowerCase())
-      if (!found || found.password !== password) {
-        return 'Неверная почта или пароль.'
+    async function login(email, password, remember = true) {
+      try {
+        const nextUser = await loginRequest({ email: email.trim(), password })
+        saveSession(nextUser, remember)
+        setUser(nextUser)
+        return ''
+      } catch (error) {
+        return error.message
       }
-      localStorage.setItem(SESSION_KEY, found.email)
-      setSessionEmail(found.email)
-      return ''
     }
 
-    function register({ name, email, password }) {
-      const normalized = email.trim().toLowerCase()
-      if (users.some((item) => item.email.toLowerCase() === normalized)) {
-        return 'Аккаунт с такой почтой уже есть. Войдите.'
+    async function register({ name, email, password }) {
+      try {
+        const nextUser = await registerRequest({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+        })
+        saveSession(nextUser, true)
+        setUser(nextUser)
+        return ''
+      } catch (error) {
+        return error.message
       }
-      const nextUser = { name: name.trim(), email: normalized, password }
-      persistUsers([...users, nextUser])
-      localStorage.setItem(SESSION_KEY, normalized)
-      setSessionEmail(normalized)
-      return ''
     }
 
     function logout() {
-      localStorage.removeItem(SESSION_KEY)
-      setSessionEmail(null)
+      clearSession()
+      setUser(null)
+      setSubscriptions([])
+      setHistory([])
     }
 
-    function subscriptionsFor(email) {
-      if (!email) return []
-      return data.subscriptions.filter((item) => item.email === email)
+    async function toggleSubscription(id) {
+      const current = subscriptions.find((item) => item.id === id)
+      if (!current) return
+      const updated = await patchSubscription(id, { active: !current.active })
+      setSubscriptions((items) => items.map((item) => (item.id === id ? updated : item)))
     }
 
-    function toggleSubscription(id) {
-      persistData({
-        ...data,
-        subscriptions: data.subscriptions.map((item) =>
-          item.id === id ? { ...item, active: !item.active } : item,
-        ),
+    async function removeSubscription(id) {
+      await deleteSubscription(id)
+      setSubscriptions((items) => items.filter((item) => item.id !== id))
+    }
+
+    async function addSubscription(entry) {
+      const subscription = await createSubscription({
+        userId: user.id,
+        from: entry.from,
+        to: entry.to,
+        date: entry.date,
+        target: entry.target,
       })
-    }
-
-    function removeSubscription(id) {
-      persistData({
-        ...data,
-        subscriptions: data.subscriptions.filter((item) => item.id !== id),
-      })
-    }
-
-    function addSubscription(entry) {
-      const subscription = { ...entry, id: `sub-${Date.now()}` }
-      persistData({ ...data, subscriptions: [subscription, ...data.subscriptions] })
+      setSubscriptions((items) => [subscription, ...items.filter((item) => item.id !== subscription.id)])
       return subscription
     }
 
-    function recordSearch(entry) {
-      const item = { ...entry, id: `h-${Date.now()}` }
-      persistData({ ...data, history: [item, ...data.history].slice(0, 8) })
+    async function recordSearch(entry) {
+      const forecast = await createForecast({
+        from: entry.from,
+        to: entry.to,
+        date: entry.date,
+        userId: user?.id,
+      })
+      if (user?.id) {
+        await refreshCabinet(user)
+      }
+      return forecast
     }
 
     return {
@@ -117,14 +147,14 @@ export function AuthProvider({ children }) {
       login,
       register,
       logout,
-      subscriptions: subscriptionsFor(user?.email),
-      history: data.history,
+      subscriptions,
+      history,
       toggleSubscription,
       removeSubscription,
       addSubscription,
       recordSearch,
     }
-  }, [user, users, data])
+  }, [user, subscriptions, history])
 
   return <AuthContext.Provider value={api}>{children}</AuthContext.Provider>
 }
