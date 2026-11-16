@@ -39,6 +39,7 @@ export function LoginPage() {
   const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
   const [hint, setHint] = useState('')
+  const [pending, setPending] = useState(false)
 
   useEffect(() => {
     document.title = 'Вход · вовремя'
@@ -48,7 +49,7 @@ export function LoginPage() {
     if (user) navigate(next, { replace: true })
   }, [user, next, navigate])
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault()
     if (!isEmail(email)) {
       setError('Введите корректную почту.')
@@ -58,12 +59,13 @@ export function LoginPage() {
       setError('Пароль должен быть не короче 6 символов.')
       return
     }
-    const message = login(email, password)
+    setPending(true)
+    const message = await login(email, password, remember)
+    setPending(false)
     if (message) {
       setError(message)
       return
     }
-    if (!remember) sessionStorage.setItem('vovremya-soft', '1')
     navigate(next)
   }
 
@@ -107,8 +109,8 @@ export function LoginPage() {
           </div>
           {error ? <p className="form-error">{error}</p> : null}
           {hint ? <p className="form-hint">{hint}</p> : null}
-          <button type="submit" className="btn btn-primary btn-block">
-            Войти →
+          <button type="submit" className="btn btn-primary btn-block" disabled={pending}>
+            {pending ? 'Входим…' : 'Войти →'}
           </button>
         </form>
         <p className="auth-switch">
@@ -131,6 +133,7 @@ export function RegisterPage() {
   const [show, setShow] = useState(false)
   const [agree, setAgree] = useState(true)
   const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
   const issues = passwordIssues(password)
   const passwordError = password ? firstPasswordError(password) : ''
 
@@ -142,7 +145,7 @@ export function RegisterPage() {
     if (user) navigate('/routes', { replace: true })
   }, [user, navigate])
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault()
     if (name.trim().length < 2) {
       setError('Как к вам обращаться?')
@@ -160,7 +163,9 @@ export function RegisterPage() {
       setError('Примите условия использования, чтобы создать аккаунт.')
       return
     }
-    const message = register({ name, email, password })
+    setPending(true)
+    const message = await register({ name, email, password })
+    setPending(false)
     if (message) {
       setError(message)
       return
@@ -207,8 +212,8 @@ export function RegisterPage() {
             </span>
           </label>
           {error && error !== passwordError ? <p className="form-error">{error}</p> : null}
-          <button type="submit" className="btn btn-primary btn-block">
-            Создать аккаунт →
+          <button type="submit" className="btn btn-primary btn-block" disabled={pending}>
+            {pending ? 'Создаём…' : 'Создать аккаунт →'}
           </button>
         </form>
         <p className="auth-switch">

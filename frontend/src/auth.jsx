@@ -1,31 +1,44 @@
 import { createContext, useContext, useMemo, useState } from 'react'
-import { DEMO_USER, seedHistory, seedSubscriptions } from './data'
+import { seedHistory, seedSubscriptions } from './data'
 
 const AuthContext = createContext(null)
-const USERS_KEY = 'vovremya-users'
 const SESSION_KEY = 'vovremya-session'
 const DATA_KEY = 'vovremya-data'
 
-function readJson(key, fallback) {
+function readJson(storage, key, fallback) {
   try {
-    const raw = localStorage.getItem(key)
+    const raw = storage.getItem(key)
     return raw ? JSON.parse(raw) : fallback
   } catch {
     return fallback
   }
 }
 
-function seedUsers() {
-  const users = readJson(USERS_KEY, [])
-  if (!users.some((user) => user.email === DEMO_USER.email)) {
-    users.push(DEMO_USER)
-    localStorage.setItem(USERS_KEY, JSON.stringify(users))
+function readSession() {
+  const fromTab = readJson(sessionStorage, SESSION_KEY, null)
+  if (fromTab?.email) return fromTab
+  const stored = readJson(localStorage, SESSION_KEY, null)
+  return stored?.email ? stored : null
+}
+
+function saveSession(user, remember) {
+  const raw = JSON.stringify(user)
+  if (remember) {
+    localStorage.setItem(SESSION_KEY, raw)
+    sessionStorage.removeItem(SESSION_KEY)
+  } else {
+    sessionStorage.setItem(SESSION_KEY, raw)
+    localStorage.removeItem(SESSION_KEY)
   }
-  return users
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY)
+  sessionStorage.removeItem(SESSION_KEY)
 }
 
 function seedData() {
-  const stored = readJson(DATA_KEY, null)
+  const stored = readJson(localStorage, DATA_KEY, null)
   if (stored?.subscriptions && stored?.history) return stored
   const data = {
     subscriptions: seedSubscriptions,
@@ -35,17 +48,27 @@ function seedData() {
   return data
 }
 
-export function AuthProvider({ children }) {
-  const [users, setUsers] = useState(seedUsers)
-  const [sessionEmail, setSessionEmail] = useState(() => localStorage.getItem(SESSION_KEY))
-  const [data, setData] = useState(seedData)
-
-  const user = users.find((item) => item.email === sessionEmail) ?? null
-
-  function persistUsers(next) {
-    setUsers(next)
-    localStorage.setItem(USERS_KEY, JSON.stringify(next))
+async function postAuth(path, body) {
+  let response
+  try {
+    response = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    return { error: 'Не удалось связаться с сервером. Запустите бэкенд на порту 8080.' }
   }
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    return { error: payload.detail || 'Не получилось выполнить запрос.' }
+  }
+  return { user: payload }
+}
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(readSession)
+  const [data, setData] = useState(seedData)
 
   function persistData(next) {
     setData(next)
@@ -53,31 +76,32 @@ export function AuthProvider({ children }) {
   }
 
   const api = useMemo(() => {
-    function login(email, password) {
-      const found = users.find((item) => item.email.toLowerCase() === email.trim().toLowerCase())
-      if (!found || found.password !== password) {
-        return 'Неверная почта или пароль.'
-      }
-      localStorage.setItem(SESSION_KEY, found.email)
-      setSessionEmail(found.email)
+    async function login(email, password, remember = true) {
+      const result = await postAuth('/api/auth/login', {
+        email: email.trim(),
+        password,
+      })
+      if (result.error) return result.error
+      saveSession(result.user, remember)
+      setUser(result.user)
       return ''
     }
 
-    function register({ name, email, password }) {
-      const normalized = email.trim().toLowerCase()
-      if (users.some((item) => item.email.toLowerCase() === normalized)) {
-        return 'Аккаунт с такой почтой уже есть. Войдите.'
-      }
-      const nextUser = { name: name.trim(), email: normalized, password }
-      persistUsers([...users, nextUser])
-      localStorage.setItem(SESSION_KEY, normalized)
-      setSessionEmail(normalized)
+    async function register({ name, email, password }) {
+      const result = await postAuth('/api/auth/register', {
+        name: name.trim(),
+        email: email.trim(),
+        password,
+      })
+      if (result.error) return result.error
+      saveSession(result.user, true)
+      setUser(result.user)
       return ''
     }
 
     function logout() {
-      localStorage.removeItem(SESSION_KEY)
-      setSessionEmail(null)
+      clearSession()
+      setUser(null)
     }
 
     function subscriptionsFor(email) {
@@ -124,7 +148,7 @@ export function AuthProvider({ children }) {
       addSubscription,
       recordSearch,
     }
-  }, [user, users, data])
+  }, [user, data])
 
   return <AuthContext.Provider value={api}>{children}</AuthContext.Provider>
 }
