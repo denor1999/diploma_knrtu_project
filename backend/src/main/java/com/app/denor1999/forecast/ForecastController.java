@@ -34,8 +34,8 @@ public class ForecastController {
 	}
 
 	@GetMapping
-	public List<ForecastDtos.HistoryItem> history(@RequestParam Long userId) {
-		return forecasts.history(userId);
+	public List<ForecastDtos.HistoryItem> history() {
+		return forecasts.history();
 	}
 
 	@GetMapping("/quote")

@@ -3,7 +3,6 @@ package com.app.denor1999.auth;
 import com.app.denor1999.user.UserAccount;
 import com.app.denor1999.user.UserRepository;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -16,21 +15,28 @@ public class AuthService {
 	private static final Pattern DIGIT = Pattern.compile("\\d");
 	private static final Pattern UPPER = Pattern.compile("[A-ZА-ЯЁ]");
 
-	private final UserRepository users;
-	private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+	private static final int MAX_NAME = 120;
+	private static final int MAX_EMAIL = 255;
+	private static final int MAX_PASSWORD = 72;
 
-	public AuthService(UserRepository users) {
+	private final UserRepository users;
+	private final PasswordEncoder passwordEncoder;
+	private final JwtService tokens;
+
+	public AuthService(UserRepository users, PasswordEncoder passwordEncoder, JwtService tokens) {
 		this.users = users;
+		this.passwordEncoder = passwordEncoder;
+		this.tokens = tokens;
 	}
 
 	public AuthRequests.UserResponse register(AuthRequests.RegisterRequest request) {
 		String name = request.name() == null ? "" : request.name().trim();
 		String email = normalizeEmail(request.email());
 		String password = request.password() == null ? "" : request.password();
-		if (name.length() < 2) {
+		if (name.length() < 2 || name.length() > MAX_NAME) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "Как к вам обращаться?");
 		}
-		if (!EMAIL.matcher(email).matches()) {
+		if (email.length() > MAX_EMAIL || !EMAIL.matcher(email).matches()) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "Введите корректную почту.");
 		}
 		String passwordError = passwordError(password);
@@ -55,7 +61,13 @@ public class AuthService {
 	}
 
 	private AuthRequests.UserResponse toResponse(UserAccount user) {
-		return new AuthRequests.UserResponse(user.getId(), user.getName(), user.getEmail(), user.getRole(), user.getCreatedAt());
+		return new AuthRequests.UserResponse(
+				tokens.issue(user),
+				user.getId(),
+				user.getName(),
+				user.getEmail(),
+				user.getRole(),
+				user.getCreatedAt());
 	}
 
 	private String normalizeEmail(String email) {
@@ -65,6 +77,9 @@ public class AuthService {
 	private String passwordError(String password) {
 		if (password.length() < 8) {
 			return "Добавьте хотя бы 8 символов.";
+		}
+		if (password.length() > MAX_PASSWORD) {
+			return "Пароль слишком длинный.";
 		}
 		if (!DIGIT.matcher(password).find()) {
 			return "Добавьте хотя бы одну цифру.";

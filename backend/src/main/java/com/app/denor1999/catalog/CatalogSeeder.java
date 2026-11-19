@@ -39,7 +39,7 @@ public class CatalogSeeder implements CommandLineRunner {
 			ForecastRepository forecasts,
 			ForecastCalculator calculator,
 			ObjectMapper objectMapper,
-			@Value("${app.demo.email}") String demoEmail) {
+			@Value("${app.demo.email:}") String demoEmail) {
 		this.users = users;
 		this.routes = routes;
 		this.subscriptions = subscriptions;

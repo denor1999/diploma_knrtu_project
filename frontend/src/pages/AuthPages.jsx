@@ -33,7 +33,7 @@ export function LoginPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const next = params.get('next') || '/routes'
-  const [email, setEmail] = useState('ozhgixinv@list.ru')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [remember, setRemember] = useState(true)
@@ -102,7 +102,7 @@ export function LoginPage() {
             <button
               type="button"
               className="text-link"
-              onClick={() => setHint('В этой версии письмо не отправляется. Для демо-аккаунта Ивана пароль — Ivan1234.')}
+              onClick={() => setHint('В этой версии письмо не отправляется. Если забыли пароль, создайте новый аккаунт.')}
             >
               Забыли пароль?
             </button>
@@ -127,9 +127,9 @@ export function LoginPage() {
 export function RegisterPage() {
   const { user, register } = useAuth()
   const navigate = useNavigate()
-  const [name, setName] = useState('Иван')
-  const [email, setEmail] = useState('ozhgixinv@list.ru')
-  const [password, setPassword] = useState('ivan1234')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [agree, setAgree] = useState(true)
   const [error, setError] = useState('')

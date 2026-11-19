@@ -24,9 +24,9 @@ function readJson(storage, key, fallback) {
 
 function readSession() {
   const fromTab = readJson(sessionStorage, SESSION_KEY, null)
-  if (fromTab?.email) return fromTab
+  if (fromTab?.email && fromTab?.token) return fromTab
   const stored = readJson(localStorage, SESSION_KEY, null)
-  return stored?.email ? stored : null
+  return stored?.email && stored?.token ? stored : null
 }
 
 function saveSession(user, remember) {
@@ -57,8 +57,8 @@ export function AuthProvider({ children }) {
       return
     }
     const [nextSubscriptions, nextHistory] = await Promise.all([
-      listSubscriptions(nextUser.id),
-      listForecasts(nextUser.id),
+      listSubscriptions(),
+      listForecasts(),
     ])
     setSubscriptions(nextSubscriptions)
     setHistory(nextHistory)
@@ -119,7 +119,6 @@ export function AuthProvider({ children }) {
 
     async function addSubscription(entry) {
       const subscription = await createSubscription({
-        userId: user.id,
         from: entry.from,
         to: entry.to,
         date: entry.date,
@@ -130,11 +129,11 @@ export function AuthProvider({ children }) {
     }
 
     async function recordSearch(entry) {
+      if (!user?.token) return null
       const forecast = await createForecast({
         from: entry.from,
         to: entry.to,
         date: entry.date,
-        userId: user?.id,
       })
       if (user?.id) {
         await refreshCabinet(user)

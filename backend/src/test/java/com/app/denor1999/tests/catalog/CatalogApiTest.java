@@ -2,6 +2,7 @@ package com.app.denor1999.catalog;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -24,17 +25,26 @@ class CatalogApiTest {
 	@Autowired
 	private MockMvc mockMvc;
 
+	@Value("${app.demo.email}")
+	private String demoEmail;
+
+	@Value("${app.demo.password}")
+	private String demoPassword;
+
 	@Test
 	void listsSeededRoutesAndCreatesForecast() throws Exception {
+		String token = login(demoEmail, demoPassword);
+
 		mockMvc.perform(get("/api/routes"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(greaterThanOrEqualTo(4)))
 				.andExpect(jsonPath("$[0].originCode").exists());
 
 		mockMvc.perform(post("/api/forecasts")
+						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"from":"SVO","to":"AER","date":"2026-11-24","userId":1}
+								{"from":"SVO","to":"AER","date":"2026-11-24","userId":999}
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.from").value("SVO"))
@@ -43,7 +53,10 @@ class CatalogApiTest {
 				.andExpect(jsonPath("$.current").value(8400))
 				.andExpect(jsonPath("$.factors.length()").value(4));
 
-		mockMvc.perform(get("/api/forecasts").param("userId", "1"))
+		mockMvc.perform(get("/api/forecasts"))
+				.andExpect(status().isUnauthorized());
+
+		mockMvc.perform(get("/api/forecasts").header("Authorization", "Bearer " + token))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(greaterThanOrEqualTo(2)));
 
@@ -58,11 +71,14 @@ class CatalogApiTest {
 
 	@Test
 	void managesSubscriptionsForDemoUser() throws Exception {
-		mockMvc.perform(get("/api/subscriptions").param("userId", "1"))
+		String token = login(demoEmail, demoPassword);
+
+		mockMvc.perform(get("/api/subscriptions").header("Authorization", "Bearer " + token))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(greaterThanOrEqualTo(2)));
 
 		String body = mockMvc.perform(post("/api/subscriptions")
+						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{"userId":1,"from":"SVO","to":"LED","date":"2026-11-24","target":3900}
@@ -77,6 +93,7 @@ class CatalogApiTest {
 		String id = body.replaceAll(".*\"id\":(\\d+).*", "$1");
 
 		mockMvc.perform(patch("/api/subscriptions/" + id)
+						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{"active":false}
@@ -84,8 +101,49 @@ class CatalogApiTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.active").value(false));
 
-		mockMvc.perform(delete("/api/subscriptions/" + id))
+		String stranger = registerToken("stranger-" + System.nanoTime() + "@example.ru");
+		mockMvc.perform(delete("/api/subscriptions/" + id).header("Authorization", "Bearer " + stranger))
+				.andExpect(status().isNotFound());
+
+		mockMvc.perform(delete("/api/subscriptions/" + id).header("Authorization", "Bearer " + token))
 				.andExpect(status().isNoContent());
+	}
+
+	private String login(String email, String password) throws Exception {
+		String body = mockMvc.perform(post("/api/auth/login")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"email":"%s","password":"%s"}
+								""".formatted(email, password)))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		return tokenFrom(body);
+	}
+
+	private String registerToken(String email) throws Exception {
+		String body = mockMvc.perform(post("/api/auth/register")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"name":"Чужой","email":"%s","password":"%s"}
+								""".formatted(email, demoPassword)))
+				.andExpect(status().isCreated())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		return tokenFrom(body);
+	}
+
+	private static String tokenFrom(String body) {
+		String marker = "\"token\":\"";
+		int start = body.indexOf(marker);
+		if (start < 0) {
+			throw new IllegalStateException("token missing");
+		}
+		start += marker.length();
+		int end = body.indexOf('"', start);
+		return body.substring(start, end);
 	}
 
 }

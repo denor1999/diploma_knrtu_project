@@ -34,7 +34,8 @@ class AuthControllerTest {
 						.content(registerJson(testData.getRegisterName(), testData.getRegisterEmail(), testData.getRegisterPassword())))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.email").value(testData.getRegisterEmail().toLowerCase()))
-				.andExpect(jsonPath("$.name").value(testData.getRegisterName()));
+				.andExpect(jsonPath("$.name").value(testData.getRegisterName()))
+				.andExpect(jsonPath("$.token").isNotEmpty());
 	}
 
 	@Test
@@ -59,7 +60,8 @@ class AuthControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(loginJson(testData.getDemoEmail(), testData.getDemoPassword())))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.name").value(testData.getDemoName()));
+				.andExpect(jsonPath("$.name").value(testData.getDemoName()))
+				.andExpect(jsonPath("$.token").isNotEmpty());
 
 		mockMvc.perform(post("/api/auth/login")
 						.contentType(MediaType.APPLICATION_JSON)

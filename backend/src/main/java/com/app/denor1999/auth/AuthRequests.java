@@ -13,7 +13,7 @@ public final class AuthRequests {
 	public record LoginRequest(String email, String password) {
 	}
 
-	public record UserResponse(Long id, String name, String email, String role, Instant createdAt) {
+	public record UserResponse(String token, Long id, String name, String email, String role, Instant createdAt) {
 	}
 
 }

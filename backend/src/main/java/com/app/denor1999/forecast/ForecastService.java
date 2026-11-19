@@ -1,10 +1,11 @@
 package com.app.denor1999.forecast;
 
 import com.app.denor1999.auth.ApiException;
+import com.app.denor1999.auth.CurrentUser;
+import com.app.denor1999.route.Airports;
 import com.app.denor1999.route.FlightRoute;
 import com.app.denor1999.route.RouteRepository;
 import com.app.denor1999.user.UserAccount;
-import com.app.denor1999.user.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
@@ -32,25 +33,25 @@ public class ForecastService {
 	private final ForecastCalculator calculator;
 	private final ForecastRepository forecasts;
 	private final RouteRepository routes;
-	private final UserRepository users;
+	private final CurrentUser currentUser;
 	private final ObjectMapper objectMapper;
 
 	public ForecastService(
 			ForecastCalculator calculator,
 			ForecastRepository forecasts,
 			RouteRepository routes,
-			UserRepository users,
+			CurrentUser currentUser,
 			ObjectMapper objectMapper) {
 		this.calculator = calculator;
 		this.forecasts = forecasts;
 		this.routes = routes;
-		this.users = users;
+		this.currentUser = currentUser;
 		this.objectMapper = objectMapper;
 	}
 
 	public ForecastDtos.ForecastResponse quote(String from, String to, LocalDate date) {
-		String origin = requireAirport(from, "Откуда");
-		String destination = requireAirport(to, "Куда");
+		String origin = Airports.require(from, "Откуда");
+		String destination = Airports.require(to, "Куда");
 		LocalDate departure = date == null ? LocalDate.of(2026, 11, 24) : date;
 		ForecastCalculator.Quote quote = calculator.build(origin, destination, departure);
 		Long routeId = routes.findByOriginCodeAndDestinationCode(origin, destination)
@@ -61,16 +62,15 @@ public class ForecastService {
 
 	@Transactional
 	public ForecastDtos.ForecastResponse create(ForecastDtos.CreateRequest request) {
-		String from = requireAirport(request.from(), "Откуда");
-		String to = requireAirport(request.to(), "Куда");
+		String from = Airports.require(request.from(), "Откуда");
+		String to = Airports.require(request.to(), "Куда");
 		if (from.equals(to)) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "Выберите разные аэропорты вылета и прилёта.");
 		}
 		LocalDate date = request.date() == null ? LocalDate.of(2026, 11, 24) : request.date();
 		FlightRoute route = routes.findByOriginCodeAndDestinationCode(from, to)
 				.orElseGet(() -> routes.save(new FlightRoute(from, to, DISTANCES.getOrDefault(to, 900), false)));
-		UserAccount user = request.userId() == null ? null : users.findById(request.userId())
-				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Пользователь не найден."));
+		UserAccount user = currentUser.require();
 		ForecastCalculator.Quote quote = calculator.build(from, to, date);
 		Forecast saved = forecasts.save(new Forecast(
 				route,
@@ -89,6 +89,10 @@ public class ForecastService {
 	public ForecastDtos.ForecastResponse one(Long id) {
 		Forecast forecast = forecasts.findById(id)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Прогноз не найден."));
+		UserAccount owner = forecast.getUser();
+		if (owner == null || !owner.getId().equals(currentUser.require().getId())) {
+			throw new ApiException(HttpStatus.NOT_FOUND, "Прогноз не найден.");
+		}
 		ForecastCalculator.Quote quote = calculator.build(
 				forecast.getRoute().getOriginCode(),
 				forecast.getRoute().getDestinationCode(),
@@ -123,10 +127,8 @@ public class ForecastService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<ForecastDtos.HistoryItem> history(Long userId) {
-		if (userId == null) {
-			throw new ApiException(HttpStatus.BAD_REQUEST, "Укажите пользователя.");
-		}
+	public List<ForecastDtos.HistoryItem> history() {
+		Long userId = currentUser.require().getId();
 		return forecasts.findByUserIdOrderByCreatedAtDesc(userId).stream()
 				.limit(8)
 				.map(this::toHistory)
@@ -142,13 +144,6 @@ public class ForecastService {
 				HISTORY_LABEL.format(forecast.getCreatedAt().atZone(ZoneId.of("Europe/Moscow"))),
 				forecast.getCurrentPrice(),
 				forecast.getRecommendation());
-	}
-
-	private String requireAirport(String value, String field) {
-		if (value == null || value.isBlank()) {
-			throw new ApiException(HttpStatus.BAD_REQUEST, "Укажите аэропорт: " + field + ".");
-		}
-		return value.trim().toUpperCase(Locale.ROOT);
 	}
 
 	private String writeJson(List<ForecastDtos.Factor> factors) {

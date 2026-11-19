@@ -25,7 +25,7 @@ public class RouteController {
 			@RequestParam(required = false) String from,
 			@RequestParam(required = false) String to) {
 		if (from != null && to != null) {
-			return routes.findByOriginCodeAndDestinationCode(from.toUpperCase(), to.toUpperCase())
+			return routes.findByOriginCodeAndDestinationCode(Airports.require(from, "Откуда"), Airports.require(to, "Куда"))
 					.map(RouteDtos.RouteResponse::from)
 					.map(List::of)
 					.orElseGet(List::of);

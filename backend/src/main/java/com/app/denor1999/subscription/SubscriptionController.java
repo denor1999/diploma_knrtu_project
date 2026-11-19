@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,14 +28,14 @@ public class SubscriptionController {
 	}
 
 	@GetMapping
-	public List<SubscriptionDtos.SubscriptionResponse> list(@RequestParam Long userId) {
-		return subscriptions.list(userId);
+	public List<SubscriptionDtos.SubscriptionResponse> list() {
+		return subscriptions.list();
 	}
 
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	public SubscriptionDtos.SubscriptionResponse create(@RequestBody SubscriptionDtos.CreateRequest request) {
-		log.info("Подписка: user={} {} → {}", request.userId(), request.from(), request.to());
+		log.info("Подписка: {} → {}", request.from(), request.to());
 		return subscriptions.create(request);
 	}
 

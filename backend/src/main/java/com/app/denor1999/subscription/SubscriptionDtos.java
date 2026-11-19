@@ -8,7 +8,7 @@ public final class SubscriptionDtos {
 	private SubscriptionDtos() {
 	}
 
-	public record CreateRequest(Long userId, String from, String to, LocalDate date, Integer target) {
+	public record CreateRequest(String from, String to, LocalDate date, Integer target) {
 	}
 
 	public record PatchRequest(Boolean active) {

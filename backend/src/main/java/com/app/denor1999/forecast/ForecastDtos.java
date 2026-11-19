@@ -9,7 +9,7 @@ public final class ForecastDtos {
 	private ForecastDtos() {
 	}
 
-	public record CreateRequest(String from, String to, LocalDate date, Long userId) {
+	public record CreateRequest(String from, String to, LocalDate date) {
 	}
 
 	public record Factor(String title, String note, int value) {

@@ -278,9 +278,8 @@ export const popularRoutes = [
 ]
 
 export const DEMO_USER = {
-  name: 'Иван Ожгихин',
-  email: 'ozhgixinv@list.ru',
-  password: 'Ivan1234',
+  name: 'Demo User',
+  email: 'demo@example.test',
 }
 
 export function initialsOf(name) {
