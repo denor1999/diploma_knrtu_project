@@ -13,3 +13,5 @@ backend/build/
 backend/.idea/
 frontend/node_modules/
 frontend/dist/
+backend/src/test/resources/application-test.properties
+backend/src/test/resources/testdata.properties
