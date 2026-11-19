@@ -1,2 +1,15 @@
-.idea
+.idea/
+*.iml
 .env
+__pycache__/
+**/__init__.py
+.venv/
+.pytest_cache/
+*.pyc
+.DS_Store
+Thumbs.db
+backend/.gradle/
+backend/build/
+backend/.idea/
+frontend/node_modules/
+frontend/dist/
